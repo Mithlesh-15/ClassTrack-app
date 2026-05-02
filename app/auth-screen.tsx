@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity } from "react-native";
 import { supabase } from "../lib/supabase";
+import { useRouter } from "expo-router";
 
-export default function LoginScreen({ navigation }) {
+export default function LoginScreen() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,7 +18,7 @@ export default function LoginScreen({ navigation }) {
     const { data } = await supabase.auth.getSession();
 
     if (data.session) {
-      navigation.replace("Home");
+      router.replace("/");
     }
   };
 
@@ -37,7 +39,7 @@ export default function LoginScreen({ navigation }) {
       });
 
     if (!loginError) {
-      navigation.replace("Home");
+      router.replace("/");
       setLoading(false);
       return;
     }
@@ -52,7 +54,7 @@ export default function LoginScreen({ navigation }) {
       alert(signupError.message);
     } else {
       alert("New user created & logged in");
-      navigation.replace("Home");
+      router.replace("/");
     }
 
     setLoading(false);

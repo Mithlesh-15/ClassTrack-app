@@ -1,16 +1,38 @@
+import { useEffect, useState } from "react";
+import { View, Text, ActivityIndicator } from "react-native";
+import { supabase } from "../lib/supabase";
+import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Text, View } from "react-native";
+export default function HomeScreen() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
-export default function Index() {
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    const { data } = await supabase.auth.getSession();
+
+    if (!data.session) {
+      router.replace("/auth-screen");
+    } else {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center" }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <Text>hello, world!</Text>
-    </View>
+    <SafeAreaView style={{ flex: 1, padding: 20 }}>
+      <Text>Welcome to Home Screen 🎉</Text>
+    </SafeAreaView>
   );
 }
