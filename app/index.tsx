@@ -2,6 +2,7 @@ import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -112,6 +113,56 @@ export default function HomeScreen() {
     });
   };
 
+  const deleteClass = async (classId: string) => {
+    const previousClasses = classes;
+
+    try {
+      setClasses((currentClasses) =>
+        currentClasses.filter((item) => item.id !== classId),
+      );
+
+      const { error: deleteError } = await supabase
+        .from("classes")
+        .delete()
+        .eq("id", classId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      Alert.alert("Class deleted");
+    } catch (err) {
+      setClasses(previousClasses);
+
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Unable to delete the class right now.";
+
+      Alert.alert("Delete failed", message);
+    }
+  };
+
+  const confirmDeleteClass = (classId: string) => {
+    Alert.alert(
+      "Delete Class",
+      "Are you sure you want to delete this class?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void deleteClass(classId);
+          },
+        },
+      ],
+    );
+  };
+
   if (!sessionChecked || loading) {
     return (
       <View style={styles.centered}>
@@ -155,6 +206,8 @@ export default function HomeScreen() {
                   params: { class_id: item.id },
                 })
               }
+              onLongPress={() => confirmDeleteClass(item.id)}
+              delayLongPress={250}
             >
               <Text style={styles.className}>{item.name}</Text>
               <Text style={styles.classDate}>
