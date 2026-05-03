@@ -56,7 +56,7 @@ export default function HomeScreen() {
             fontWeight: "600",
           }}
         >
-          Create Class
+          + Create New Class
         </Text>
       </TouchableOpacity>
     </SafeAreaView>

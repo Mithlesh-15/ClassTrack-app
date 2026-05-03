@@ -5,12 +5,14 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
+  Alert,
+  ScrollView,
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
-// 🧠 Student type
 type Student = {
   id: number;
   name: string;
@@ -19,129 +21,170 @@ type Student = {
 export default function CreateClass() {
   const router = useRouter();
 
-  const [className, setClassName] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
+  const [className, setClassName] = useState("");
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // ➕ Add student
   const addStudent = () => {
     setStudents((prev) => [...prev, { id: Date.now(), name: "" }]);
   };
 
-  // ✏️ Update student
   const updateStudent = (id: number, value: string) => {
     setStudents((prev) =>
       prev.map((s) => (s.id === id ? { ...s, name: value } : s)),
     );
   };
 
-  // ❌ Remove student
   const removeStudent = (id: number) => {
     setStudents((prev) => prev.filter((s) => s.id !== id));
   };
 
-  // 🚀 Create class
+  // 🧠 validation
+  const validate = () => {
+    if (!className.trim()) {
+      Alert.alert("Error", "Class name required");
+      return false;
+    }
+
+    if (!startDate) {
+      Alert.alert("Error", "Select start date");
+      return false;
+    }
+
+    const invalidStudent = students.find(
+      (s) => !s.name || s.name.trim() === "",
+    );
+
+    if (invalidStudent) {
+      Alert.alert("Error", "Student name cannot be empty");
+      return false;
+    }
+
+    return true;
+  };
+
   const handleCreate = async () => {
-    
-    if (!className || !startDate) {
-      alert("Fill all fields");
-      return;
-    }
+    if (!validate()) return;
 
-    // 🔑 get user
-    const { data: userData } = await supabase.auth.getUser();
-    const user = userData.user;
+    try {
+      setLoading(true);
 
-    if (!user) {
-      alert("User not found");
-      return;
-    }
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData.user;
 
-    // 1️⃣ Insert class
-    const { data: classData, error: classError } = await supabase
-      .from("classes")
-      .insert([
-        {
-          name: className,
-          start_date: startDate,
-          teacher_id: user.id,
-        },
-      ])
-      .select()
-      .single();
+      if (!user) throw new Error("User not logged in");
 
-    if (classError) {
-      alert(classError.message);
-      return;
-    }
+      // 🟢 insert class
+      const { data: classData, error: classError } = await supabase
+        .from("classes")
+        .insert([
+          {
+            name: className,
+            start_date: startDate?.toISOString().split("T")[0],
+            teacher_id: user.id,
+          },
+        ])
+        .select()
+        .single();
 
-    // 2️⃣ Insert students
-    const validStudents = students.filter((s) => s.name.trim() !== "");
+      if (classError) throw classError;
 
-    if (validStudents.length > 0) {
-      const studentData = validStudents.map((s) => ({
-        name: s.name,
-        class_id: classData.id,
-      }));
+      // 🟢 insert students
+      if (students.length > 0) {
+        const studentData = students.map((s) => ({
+          name: s.name,
+          class_id: classData.id,
+        }));
 
-      const { error: studentError } = await supabase
-        .from("students")
-        .insert(studentData);
+        const { error: studentError } = await supabase
+          .from("students")
+          .insert(studentData);
 
-      if (studentError) {
-        alert(studentError.message);
-        return;
+        if (studentError) throw studentError;
       }
+
+      Alert.alert("Success", "Class created successfully 🎉");
+
+      router.replace("/");
+    } catch (error: any) {
+      console.log("ERROR:", error);
+
+      Alert.alert(
+        "Error",
+        error?.message || "Something went wrong. Try again.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    alert("Class created 🎉");
-
-    router.replace("/");
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Create Class</Text>
+      <ScrollView>
+        <Text style={styles.title}>Create Class</Text>
 
-      <TextInput
-        placeholder="Class Name"
-        value={className}
-        onChangeText={setClassName}
-        style={styles.input}
-      />
+        <TextInput
+          placeholder="Class Name"
+          value={className}
+          onChangeText={setClassName}
+          style={styles.input}
+        />
 
-      <TextInput
-        placeholder="Start Date (YYYY-MM-DD)"
-        value={startDate}
-        onChangeText={setStartDate}
-        style={styles.input}
-        keyboardType="decimal-pad"
-      />
+        {/* 📅 Date Picker */}
+        <TouchableOpacity
+          style={styles.input}
+          onPress={() => setShowPicker(true)}
+        >
+          <Text>
+            {startDate ? startDate.toDateString() : "Select Start Date Of Class"}
+          </Text>
+        </TouchableOpacity>
 
-      <Text style={styles.subTitle}>Students</Text>
-
-      {students.map((student) => (
-        <View key={student.id} style={styles.studentRow}>
-          <TextInput
-            placeholder="Student Name"
-            value={student.name}
-            onChangeText={(text) => updateStudent(student.id, text)}
-            style={styles.studentInput}
+        {showPicker && (
+          <DateTimePicker
+            value={startDate || new Date()}
+            mode="date"
+            display="default"
+            onChange={(_, selectedDate) => {
+              setShowPicker(false);
+              if (selectedDate) setStartDate(selectedDate);
+            }}
           />
+        )}
 
-          <TouchableOpacity onPress={() => removeStudent(student.id)}>
-            <Text style={{ color: "red", fontSize: 18 }}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      ))}
+        <Text style={styles.subTitle}>Students</Text>
 
-      <TouchableOpacity style={styles.addBtn} onPress={addStudent}>
-        <Text style={{ textAlign: "center" }}>+ Add Student</Text>
-      </TouchableOpacity>
+        {students.map((student) => (
+          <View key={student.id} style={styles.studentRow}>
+            <TextInput
+              placeholder="Student Name"
+              value={student.name}
+              onChangeText={(text) => updateStudent(student.id, text)}
+              style={styles.studentInput}
+            />
 
-      <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
-        <Text style={{ color: "#fff", textAlign: "center" }}>Create Class</Text>
-      </TouchableOpacity>
+            <TouchableOpacity onPress={() => removeStudent(student.id)}>
+              <Text style={styles.delete}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+
+        <TouchableOpacity style={styles.addBtn} onPress={addStudent}>
+          <Text style={styles.addText}>+ Add Student</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.createBtn, loading && { opacity: 0.6 }]}
+          onPress={handleCreate}
+          disabled={loading}
+        >
+          <Text style={styles.createText}>
+            {loading ? "Creating..." : "Create Class"}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -168,16 +211,29 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginRight: 10,
   },
+  delete: {
+    color: "red",
+    fontSize: 18,
+  },
   addBtn: {
     backgroundColor: "#eee",
     padding: 12,
     borderRadius: 8,
     marginTop: 10,
   },
+  addText: {
+    textAlign: "center",
+    fontWeight: "500",
+  },
   createBtn: {
     backgroundColor: "#2563eb",
     padding: 15,
     borderRadius: 10,
     marginTop: 30,
+  },
+  createText: {
+    color: "#fff",
+    textAlign: "center",
+    fontWeight: "600",
   },
 });
