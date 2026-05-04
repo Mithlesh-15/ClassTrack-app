@@ -19,7 +19,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.mithbhaiz.classtrackapp"
     },
     "web": {
       "output": "static",
@@ -44,6 +45,14 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "supabaseUrl": "https://your-project.supabase.co",
+      "supabaseKey": "your-anon-key",
+      "router": {},
+      "eas": {
+        "projectId": "56b56e69-cf5b-4361-9989-097b1125a63c"
+      }
     }
   }
 }
