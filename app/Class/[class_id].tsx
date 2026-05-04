@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -43,13 +44,16 @@ export default function ClassDetailScreen() {
   const { class_id } = useLocalSearchParams<{
     class_id?: string | string[];
   }>();
-
+  const router = useRouter();
   const classId = Array.isArray(class_id) ? class_id[0] : class_id;
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDate());
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [newStudentName, setNewStudentName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const hasMarkedStudents = useMemo(
@@ -89,7 +93,7 @@ export default function ClassDetailScreen() {
       .select("date")
       .eq("class_id", classId)
       .order("date", { ascending: false })
-      .limit(3);
+      .limit(4);
 
     if (attendanceDatesError) {
       throw attendanceDatesError;
@@ -232,6 +236,61 @@ export default function ClassDetailScreen() {
     void loadAttendance(date);
   };
 
+  const handleAddStudent = async () => {
+    if (!classId) {
+      Alert.alert("Error", "Class id is missing.");
+      return;
+    }
+
+    const trimmedName = newStudentName.trim();
+
+    if (!trimmedName) {
+      Alert.alert("Invalid name", "Student name cannot be empty.");
+      return;
+    }
+
+    try {
+      setAddingStudent(true);
+
+      const { data, error: insertError } = await supabase
+        .from("students")
+        .insert([
+          {
+            name: trimmedName,
+            class_id: classId,
+          },
+        ])
+        .select("id, name")
+        .single();
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      const createdStudent: Student = {
+        id: String(data.id),
+        name: data.name,
+        status: undefined,
+      };
+
+      setStudents((currentStudents) =>
+        [...currentStudents, createdStudent].sort((a, b) =>
+          a.name.localeCompare(b.name),
+        ),
+      );
+      setNewStudentName("");
+      setShowAddStudent(false);
+      Alert.alert("Success", "Student added");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to add student right now.";
+
+      Alert.alert("Error", message);
+    } finally {
+      setAddingStudent(false);
+    }
+  };
+
   const dateOptions = useMemo(() => {
     const today = getTodayDate();
     const uniqueDates = Array.from(
@@ -345,6 +404,7 @@ export default function ClassDetailScreen() {
       await fetchAvailableDates();
       await loadAttendance(selectedDate);
       Alert.alert("Success", "Attendance saved successfully");
+      router.replace("/");
     } catch (err) {
       const message =
         err instanceof Error
@@ -397,10 +457,7 @@ export default function ClassDetailScreen() {
             return (
               <Pressable
                 key={option.value}
-                style={[
-                  styles.dateChip,
-                  isSelected && styles.dateChipSelected,
-                ]}
+                style={[styles.dateChip, isSelected && styles.dateChipSelected]}
                 onPress={() => handleSelectDate(option.value)}
               >
                 <Text
@@ -416,6 +473,60 @@ export default function ClassDetailScreen() {
           })}
         </ScrollView>
         <Text style={styles.selectedDateText}>Selected: {selectedDate}</Text>
+      </View>
+
+      <View style={styles.addStudentSection}>
+        <Pressable
+          style={styles.addStudentButton}
+          onPress={() => setShowAddStudent((current) => !current)}
+        >
+          <Text style={styles.addStudentButtonText}>+ Add Student</Text>
+        </Pressable>
+
+        {showAddStudent ? (
+          <View style={styles.addStudentForm}>
+            <TextInput
+              value={newStudentName}
+              onChangeText={setNewStudentName}
+              placeholder="Enter student name"
+              placeholderTextColor="#94a3b8"
+              style={styles.addStudentInput}
+              editable={!addingStudent}
+              returnKeyType="done"
+              onSubmitEditing={() => {
+                void handleAddStudent();
+              }}
+            />
+            <View style={styles.addStudentActions}>
+              <Pressable
+                style={styles.addStudentSecondaryButton}
+                onPress={() => {
+                  setShowAddStudent(false);
+                  setNewStudentName("");
+                }}
+                disabled={addingStudent}
+              >
+                <Text style={styles.addStudentSecondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.addStudentPrimaryButton,
+                  addingStudent && styles.buttonDisabled,
+                ]}
+                onPress={() => {
+                  void handleAddStudent();
+                }}
+                disabled={addingStudent}
+              >
+                {addingStudent ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.addStudentPrimaryButtonText}>Add</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <FlatList
@@ -480,24 +591,26 @@ export default function ClassDetailScreen() {
         }
       />
 
-      <View style={styles.footer}>
-        <Pressable
-          style={[
-            styles.saveButton,
-            (!hasMarkedStudents || saving) && styles.saveButtonDisabled,
-          ]}
-          onPress={() => {
-            void saveAttendance();
-          }}
-          disabled={!hasMarkedStudents || saving}
-        >
-          {saving ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.saveButtonText}>Save Attendance</Text>
-          )}
-        </Pressable>
-      </View>
+      <SafeAreaView edges={["bottom"]} style={styles.footerSafeArea}>
+        <View style={styles.footer}>
+          <Pressable
+            style={[
+              styles.saveButton,
+              (!hasMarkedStudents || saving) && styles.saveButtonDisabled,
+            ]}
+            onPress={() => {
+              void saveAttendance();
+            }}
+            disabled={!hasMarkedStudents || saving}
+          >
+            {saving ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Attendance</Text>
+            )}
+          </Pressable>
+        </View>
+      </SafeAreaView>
     </SafeAreaView>
   );
 }
@@ -561,9 +674,74 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748b",
   },
+  addStudentSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  addStudentButton: {
+    alignSelf: "flex-start",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#e0edff",
+  },
+  addStudentButtonText: {
+    color: "#1d4ed8",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  addStudentForm: {
+    backgroundColor: "#ffffff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 14,
+    gap: 12,
+  },
+  addStudentInput: {
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#0f172a",
+    backgroundColor: "#ffffff",
+  },
+  addStudentActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  addStudentSecondaryButton: {
+    borderRadius: 10,
+    backgroundColor: "#e2e8f0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  addStudentSecondaryButtonText: {
+    color: "#334155",
+    fontWeight: "600",
+  },
+  addStudentPrimaryButton: {
+    borderRadius: 10,
+    backgroundColor: "#2563eb",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minWidth: 76,
+    alignItems: "center",
+  },
+  addStudentPrimaryButtonText: {
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   listContent: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 24,
     gap: 12,
   },
   emptyListContent: {
@@ -629,11 +807,13 @@ const styles = StyleSheet.create({
     color: "#64748b",
     textAlign: "center",
   },
+  footerSafeArea: {
+    backgroundColor: "#f8fafc",
+  },
   footer: {
-    position: "absolute",
-    left: 20,
-    right: 20,
-    bottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   saveButton: {
     minHeight: 56,
