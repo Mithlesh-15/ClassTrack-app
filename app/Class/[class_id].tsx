@@ -290,6 +290,68 @@ export default function ClassDetailScreen() {
       setAddingStudent(false);
     }
   };
+  const handleDeleteStudent = async (studentId: string) => {
+    try {
+      const { error: deleteError } = await supabase
+        .from("students")
+        .delete()
+        .eq("id", studentId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setStudents((currentStudents) =>
+        currentStudents.filter((student) => student.id !== studentId),
+      );
+      Alert.alert("Success", "Student deleted");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to delete student right now.";
+
+      Alert.alert("Error", message);
+    }
+  };
+
+  const handleStudentLongPress = (student: Student) => {
+    Alert.alert("Student Options", student.name, [
+      {
+        text: "History",
+        onPress: () => {
+          router.push({
+            pathname: "/history/[id]",
+            params: { id: student.id },
+          });
+        },
+      },
+      {
+        text: "Delete",
+        onPress: () => {
+          Alert.alert(
+            "Delete Student",
+            "Are you sure you want to delete this student?",
+            [
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
+              {
+                text: "Delete",
+                style: "destructive",
+                onPress: () => {
+                  void handleDeleteStudent(student.id);
+                },
+              },
+            ],
+          );
+        },
+      },
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+    ]);
+  };
 
   const dateOptions = useMemo(() => {
     const today = getTodayDate();
@@ -541,7 +603,11 @@ export default function ClassDetailScreen() {
           const isAbsent = item.status === "absent";
 
           return (
-            <View style={styles.card}>
+            <Pressable
+              style={styles.card}
+              onLongPress={() => handleStudentLongPress(item)}
+              delayLongPress={250}
+            >
               <Text style={styles.studentName}>{item.name}</Text>
 
               <View style={styles.actionsRow}>
@@ -581,7 +647,7 @@ export default function ClassDetailScreen() {
                   </Text>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           );
         }}
         ListEmptyComponent={
