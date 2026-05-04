@@ -144,23 +144,19 @@ export default function HomeScreen() {
   };
 
   const confirmDeleteClass = (classId: string) => {
-    Alert.alert(
-      "Delete Class",
-      "Are you sure you want to delete this class?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
+    Alert.alert("Delete Class", "Are you sure you want to delete this class?", [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          void deleteClass(classId);
         },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            void deleteClass(classId);
-          },
-        },
-      ],
-    );
+      },
+    ]);
   };
 
   if (!sessionChecked || loading) {
