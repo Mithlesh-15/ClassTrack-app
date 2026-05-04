@@ -70,7 +70,7 @@ export default function ClassDetailScreen() {
       .from("students")
       .select("id, name")
       .eq("class_id", classId)
-      .order("name", { ascending: true });
+      .order("created_at", { ascending: true });
 
     if (studentsError) {
       throw studentsError;
